@@ -1,0 +1,44 @@
+{
+  "name": "@skalenetwork/mpp",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "SKALE payment method for MPP (Metered Payment Protocol)",
+  "author": "Sawyer Cutler <sawyer@dirtroad.dev>",
+  "license": "MIT",
+  "homepage": "https://github.com/skalenetwork/mpp-skale#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skalenetwork/mpp-skale.git"
+  },
+  "bugs": {
+    "url": "https://github.com/skalenetwork/mpp-skale/issues"
+  },
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./client": "./dist/client.mjs",
+    "./server": "./dist/server.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "examples"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@skalenetwork/bite": "^0.8.1-develop.0",
+    "mppx": "^0.4.7",
+    "viem": "^2.47.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@typescript/native-preview": "7.0.0-dev.20260319.1",
+    "tsdown": "^0.21.4",
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
+  }
+}

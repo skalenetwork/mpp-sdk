@@ -73,7 +73,7 @@ export async function supportsEIP3009(client: Client, tokenAddress: Address): Pr
       address: tokenAddress,
       abi: eip3009Abi,
       functionName: 'authorizationState',
-      args: ['0x0000000000000000000000000000000000000000000000000000000000000000'],
+      args: ['0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000000000000000000000000000'],
     })
     return true
   } catch {

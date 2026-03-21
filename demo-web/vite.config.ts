@@ -16,6 +16,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      '@skalenetwork/mpp': resolve(__dirname, '../src/index.ts'),
     },
   },
   define: {
@@ -23,6 +24,7 @@ export default defineConfig({
     global: 'globalThis',
   },
   optimizeDeps: {
+    exclude: ['@skalenetwork/mpp'],
     include: ['buffer'],
     esbuildOptions: {
       define: {

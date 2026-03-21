@@ -166,13 +166,16 @@ function App() {
     try {
       addLog('📦 Loading MPP client...')
       const { Mppx, skale } = await import('@skalenetwork/mpp')
+      const confidential = type.includes('confidential')
+      const gasless = type.includes('authorization') || type === 'confidential-auth'
+      console.log('🧭 Web: Creating payment method', { type, confidential, gasless, address })
 
       const mppx = Mppx.create({
         methods: [skale.charge({
           account: address,
           getClient: () => Promise.resolve(walletClient!),
-          confidential: type.includes('confidential'),
-          gasless: type.includes('authorization') || type === 'confidential-auth',
+          confidential,
+          gasless,
           validDuration: 300,
         })],
         polyfill: false,

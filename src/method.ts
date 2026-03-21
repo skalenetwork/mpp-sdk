@@ -27,6 +27,27 @@ export const charge = Method.from({
           }),
           type: z.literal('authorization'),
         }),
+        z.object({
+          authorization: z.object({
+            from: z.string(),
+            to: z.string(),
+            value: z.string(),
+            validAfter: z.string(),
+            validBefore: z.string(),
+            nonce: z.string(),
+          }),
+          signature: z.object({
+            v: z.number(),
+            r: z.string(),
+            s: z.string(),
+          }),
+          encryptedTx: z.object({
+            data: z.string(),
+            to: z.string(),
+            gasLimit: z.string(),
+          }),
+          type: z.literal('encrypted-authorization'),
+        }),
       ]),
     },
     request: z.pipe(

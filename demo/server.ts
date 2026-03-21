@@ -47,6 +47,88 @@ if (!SERVER_ADDRESS || SERVER_ADDRESS === '') {
   process.exit(1)
 }
 
+// Check if eUSDC supports EIP-3009 on startup
+console.log('🔍 Checking eUSDC token capabilities...')
+console.log('   Token address:', EUSDC)
+try {
+  const name = await publicClient.readContract({
+    address: EUSDC,
+    abi: [{ inputs: [], name: 'name', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' }],
+    functionName: 'name',
+  })
+  console.log(`   Token name: ${name}`)
+  
+  // Check for authorizationState function with correct signature (authorizer, nonce)
+  try {
+    const testAuthorizer = '0x0000000000000000000000000000000000000001'
+    const testNonce = '0x0000000000000000000000000000000000000000000000000000000000000001'
+    console.log('   Testing authorizationState function...')
+    const result = await publicClient.readContract({
+      address: EUSDC,
+      abi: [{ 
+        inputs: [
+          { name: 'authorizer', type: 'address' },
+          { name: 'nonce', type: 'bytes32' }
+        ], 
+        name: 'authorizationState', 
+        outputs: [{ name: 'used', type: 'bool' }], 
+        stateMutability: 'view', 
+        type: 'function' 
+      }],
+      functionName: 'authorizationState',
+      args: [testAuthorizer, testNonce],
+    })
+    console.log('   ✅ eUSDC supports EIP-3009 (authorizationState returned:', result, ')')
+  } catch (err) {
+    const error = err as Error
+    console.log('   ℹ️  authorizationState error:', error.message.substring(0, 80))
+    console.error('   ❌ Could not verify EIP-3009 support')
+  }
+} catch (error) {
+  console.error('   ❌ Could not read eUSDC contract:', error)
+}
+
+// Check if USDC supports EIP-3009 on startup
+console.log('🔍 Checking USDC token capabilities...')
+console.log('   Token address:', USDC)
+try {
+  const name = await publicClient.readContract({
+    address: USDC,
+    abi: [{ inputs: [], name: 'name', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' }],
+    functionName: 'name',
+  })
+  console.log(`   Token name: ${name}`)
+  
+  // Check for authorizationState function with detailed error logging
+  try {
+    const testAuthorizer = '0x0000000000000000000000000000000000000001'
+    const testNonce = '0x0000000000000000000000000000000000000000000000000000000000000001'
+    console.log('   Testing authorizationState function...')
+    const result = await publicClient.readContract({
+      address: USDC,
+      abi: [{ 
+        inputs: [
+          { name: 'authorizer', type: 'address' },
+          { name: 'nonce', type: 'bytes32' }
+        ], 
+        name: 'authorizationState', 
+        outputs: [{ name: 'used', type: 'bool' }], 
+        stateMutability: 'view', 
+        type: 'function' 
+      }],
+      functionName: 'authorizationState',
+      args: [testAuthorizer, testNonce],
+    })
+    console.log('   ✅ USDC supports EIP-3009 (authorizationState returned:', result, ')')
+  } catch (err) {
+    const error = err as Error
+    console.log('   ℹ️  authorizationState error:', error.message.substring(0, 80))
+    console.error('   ❌ Could not verify EIP-3009 support')
+  }
+} catch (error) {
+  console.error('   ❌ Could not read USDC contract:', error)
+}
+
 // Create wallet client for gasless modes (EIP-3009 authorization)
 // The server needs a funded account to submit transactions on behalf of users
 let serverWallet: any = null

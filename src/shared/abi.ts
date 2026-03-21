@@ -47,9 +47,12 @@ export const eip3009Abi = [
     type: 'function',
   },
   {
-    inputs: [{ internalType: 'bytes32', name: '', type: 'bytes32' }],
+    inputs: [
+      { internalType: 'address', name: 'authorizer', type: 'address' },
+      { internalType: 'bytes32', name: 'nonce', type: 'bytes32' }
+    ],
     name: 'authorizationState',
-    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    outputs: [{ internalType: 'bool', name: 'used', type: 'bool' }],
     stateMutability: 'view',
     type: 'function',
   },

@@ -1,7 +1,7 @@
 import type { Address } from 'viem'
-import type { ChainConfig, TokenConfig } from '../chains/index.js'
+import type { ChainConfig, TokenConfig } from '../chains/index'
 import { isAddress } from 'viem'
-import { DEFAULT_TOKEN_DECIMALS } from '../chains/index.js'
+import { DEFAULT_TOKEN_DECIMALS } from '../chains/index'
 
 export type { TokenConfig }
 
@@ -60,4 +60,4 @@ export function createToken(config: {
   }
 }
 
-export * from './registry.js'
+export * from './registry'

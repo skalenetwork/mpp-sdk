@@ -1,6 +1,6 @@
 import type { Chain } from 'viem'
-import type { ChainConfig, ChainInput, TokenConfig } from './index.js'
-import { presets } from './presets.js'
+import type { ChainConfig, ChainInput, TokenConfig } from './'
+import { presets } from './presets'
 
 export class ChainResolutionError extends Error {
   constructor(input: unknown) {

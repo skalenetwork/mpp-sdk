@@ -3,18 +3,18 @@ import type { TransactionReceipt } from 'viem'
 import { getTransactionReceipt, sendTransaction, readContract } from 'viem/actions'
 import { isAddressEqual } from 'viem/utils'
 import { Method } from 'mppx'
-import { charge as chargeMethod } from './method.js'
-import type { ChainConfig, TokenConfig } from './chains/index.js'
-import type { ChainInput } from './chains/index.js'
-import { resolveChain } from './chains/resolver.js'
-import type { Extension } from './extensions/index.js'
-import { validateExtensions as validateExt } from './extensions/index.js'
-import type { PaymentStrategy, PaymentStrategyType } from './extensions/resolver.js'
-import { determinePaymentStrategy } from './extensions/resolver.js'
-import { submitAuthorization, submitPermitAndTransfer } from './payments/index.js'
-import type { Authorization, AuthorizationSignature, Permit, PermitSignature } from './payments/types.js'
-import type { AuthorizationStore } from './shared/types.js'
-import { eip3009Abi } from './shared/abi.js'
+import { charge as chargeMethod } from './method'
+import type { ChainConfig, TokenConfig } from './chains'
+import type { ChainInput } from './chains'
+import { resolveChain } from './chains/resolver'
+import type { Extension } from './extensions'
+import { validateExtensions as validateExt } from './extensions'
+import type { PaymentStrategy, PaymentStrategyType } from './extensions/resolver'
+import { determinePaymentStrategy } from './extensions/resolver'
+import { submitAuthorization, submitPermitAndTransfer } from './payments'
+import type { Authorization, AuthorizationSignature, Permit, PermitSignature } from './payments/types'
+import type { AuthorizationStore } from './shared/types'
+import { eip3009Abi } from './shared/abi'
 
 export type ServerChargeParameters = {
   chain: ChainInput
@@ -884,7 +884,7 @@ function createServerModeHandler(strategy: PaymentStrategy) {
   return handler
 }
 
-function charge_(parameters: ServerChargeParameters): unknown {
+function charge(parameters: ServerChargeParameters): unknown {
   const chain = resolveChain(parameters.chain)
   const token = resolveToken(chain, parameters.currency, parameters.token)
 
@@ -902,11 +902,5 @@ function charge_(parameters: ServerChargeParameters): unknown {
   return handler(parameters)
 }
 
-export namespace evm {
-  export type Parameters = ServerChargeParameters
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  export const charge: (parameters: ServerChargeParameters) => any = chargeFromMethod as any
-}
-
-export type { ServerChargeParameters as Parameters }
-export { charge_ as charge }
+export { charge }
+export type { ServerChargeParameters }

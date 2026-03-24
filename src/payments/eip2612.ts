@@ -1,8 +1,8 @@
 import type { Account, Address, Client, Hex } from 'viem'
 import { parseSignature } from 'viem'
 import { readContract, signTypedData, writeContract } from 'viem/actions'
-import { erc20Abi } from '../shared/abi.js'
-import type { Permit, PermitSignature, PermitWithSignature } from './types.js'
+import { erc20Abi } from '../shared/abi'
+import type { Permit, PermitSignature, PermitWithSignature } from './types'
 
 export type CreatePermitParams = {
   token: Address

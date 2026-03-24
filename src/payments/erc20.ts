@@ -1,7 +1,7 @@
 import type { Account, Address, Client, Hex } from 'viem'
 import { encodeFunctionData } from 'viem'
 import { sendTransaction } from 'viem/actions'
-import { erc20Abi } from '../shared/abi.js'
+import { erc20Abi } from '../shared/abi'
 
 export type TransferParams = {
   token: Address

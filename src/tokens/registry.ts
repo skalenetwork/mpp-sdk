@@ -1,5 +1,5 @@
 import type { Address } from 'viem'
-import type { TokenConfig } from '../chains/index.js'
+import type { TokenConfig } from '../chains/index'
 
 export const SKALE_USDC_MAINNET: TokenConfig = {
   address: '0x85889c8c714505E0c94b30fcfcF64fE3Ac8FCb20' as Address,

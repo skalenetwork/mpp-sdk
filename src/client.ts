@@ -3,13 +3,13 @@ import { parseSignature } from 'viem'
 import { getChainId, sendTransaction, signTypedData } from 'viem/actions'
 import { Method, Credential } from 'mppx'
 import { BITE } from '@skalenetwork/bite'
-import type { ChainConfig, TokenConfig } from './chains/index.js'
-import type { Extension } from './extensions/index.js'
-import type { PaymentStrategy } from './extensions/resolver.js'
-import { charge as chargeFromMethod } from './method.js'
-import { encodeTransfer, encodeAuthorizationCall, createAuthorization } from './shared/utils.js'
-import { executeTransfer } from './payments/erc20.js'
-import { biteAddress, gasLimit } from './defaults.js'
+import type { ChainConfig, TokenConfig } from './chains'
+import type { Extension } from './extensions'
+import type { PaymentStrategy } from './extensions/resolver'
+import { charge as chargeFromMethod } from './method'
+import { encodeTransfer, encodeAuthorizationCall, createAuthorization } from './shared/utils'
+import { executeTransfer } from './payments/erc20'
+import { biteAddress, gasLimit } from './constants'
 
 type ChainInput = string | Chain | ChainConfig
 
@@ -783,13 +783,5 @@ export function charge(parameters: ChargeParameters): unknown {
     },
   })
 }
-
-export namespace evm {
-  export type Parameters = ChargeParameters
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  export const charge: (parameters: ChargeParameters) => any = chargeFromMethod as any
-}
-
-export { chargeFromMethod as chargeMethod }
 
 export type { ChargeParameters }

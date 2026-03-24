@@ -1,7 +1,7 @@
 import type { Address, Client, Hex } from 'viem'
 import { encodeFunctionData, toHex } from 'viem'
 import { readContract } from 'viem/actions'
-import { eip3009Abi, eip2612Abi, erc20Abi } from './abi.js'
+import { eip3009Abi, eip2612Abi, erc20Abi } from './abi'
 import type { Authorization, MulticallOperation } from './types.js'
 
 export function encodeTransfer(to: Address, amount: bigint): Hex {

@@ -1,8 +1,8 @@
 import type { Account, Address, Client, Hex } from 'viem'
 import { parseSignature, toHex } from 'viem'
 import { getChainId, readContract, signTypedData, writeContract } from 'viem/actions'
-import { eip3009Abi, erc20Abi } from '../shared/abi.js'
-import type { Authorization, AuthorizationSignature, AuthorizationWithSignature } from './types.js'
+import { eip3009Abi, erc20Abi } from '../shared/abi'
+import type { Authorization, AuthorizationSignature, AuthorizationWithSignature } from './types'
 
 export type CreateAuthorizationParams = {
   token: Address

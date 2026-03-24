@@ -1,6 +1,6 @@
 # SKALE MPP Package
 
-Payment method implementation for SKALE Network and EVM chains using MPP (Metered Payment Protocol).
+Payment method implementation for SKALE Network and EVM chains using MPP (Machine Payments Protocol -- mpp.dev).
 
 ## Package Structure
 

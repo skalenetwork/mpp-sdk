@@ -1,0 +1,66 @@
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: yarn build
+
+      - name: Set version and tag
+        id: version
+        run: |
+          BRANCH=${GITHUB_REF##*/}
+          
+          if [[ "$BRANCH" == "main" ]]; then
+            NPM_TAG="latest"
+            PRERELEASE="false"
+          else
+            NPM_TAG="beta"
+            PRERELEASE="true"
+          fi
+          
+          VERSION=$(node -p "require('./package.json').version")
+          FULL_VERSION=$(BRANCH=$BRANCH VERSION=$VERSION bash ./scripts/calculate_version.sh)
+          
+          echo "VERSION=$FULL_VERSION" >> $GITHUB_ENV
+          echo "NPM_TAG=$NPM_TAG" >> $GITHUB_ENV
+          echo "PRERELEASE=$PRERELEASE" >> $GITHUB_ENV
+
+      - name: Publish to npm
+        run: |
+          npm version --no-git-tag-version $VERSION
+          npm publish --access public --tag ${{ env.NPM_TAG }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          draft: false
+          prerelease: ${{ env.PRERELEASE == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

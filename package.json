@@ -2,7 +2,7 @@
   "name": "@skalenetwork/mpp",
   "type": "module",
   "version": "0.1.2",
-  "description": "SKALE payment method for MPP (Metered Payment Protocol)",
+  "description": "SKALE payment method for MPP (Machine Payment Protocol)",
   "author": "Sawyer Cutler <sawyer@dirtroad.dev>",
   "license": "MIT",
   "homepage": "https://github.com/skalenetwork/mpp-skale#readme",

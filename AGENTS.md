@@ -225,8 +225,8 @@ bun run gasless-eip2612
 ## Dependencies
 
 ### Core
-- `mppx`: ^0.5.0 - Core MPP SDK
-- `@skalenetwork/bite`: ^0.7.2 - BITE encryption library
+- `mppx`: ^0.4.7 - Core MPP SDK
+- `@skalenetwork/bite`: ^0.8.1-develop.0 - BITE encryption library
 - `viem`: ^2.47.5 - Ethereum interactions
 
 ### Web Demo

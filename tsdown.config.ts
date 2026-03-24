@@ -6,8 +6,6 @@ export default defineConfig({
     './src/client.ts',
     './src/server.ts',
   ],
-  dts: {
-    tsgo: true,
-  },
+  dts: true,
   exports: true,
 })

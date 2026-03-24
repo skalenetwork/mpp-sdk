@@ -1,6 +1,17 @@
 import type { Address, Hex } from 'viem'
 
-/** Authorization parameters for EIP-3009 gasless transfers */
+export const EIP2612Types = {
+  Permit: [
+    { name: 'owner', type: 'address' },
+    { name: 'spender', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint256' },
+  ],
+} as const
+
+export type EIP2612TypesType = typeof EIP2612Types
+
 export type Authorization = {
   from: Address
   to: Address
@@ -10,14 +21,12 @@ export type Authorization = {
   nonce: Hex
 }
 
-/** Signature components for EIP-3009 */
 export type AuthorizationSignature = {
   v: number
   r: Hex
   s: Hex
 }
 
-/** Credential payload types */
 export type CredentialPayload =
   | { hash: Hex; type: 'hash' }
   | {
@@ -26,13 +35,11 @@ export type CredentialPayload =
       type: 'authorization'
     }
 
-/** Interface for storing seen authorization nonces (replay protection) */
 export interface AuthorizationStore {
   hasSeen(nonce: Hex): Promise<boolean>
   markSeen(nonce: Hex): Promise<void>
 }
 
-/** In-memory implementation (default, good for single-server setups) */
 export class MemoryAuthorizationStore implements AuthorizationStore {
   private seen = new Set<string>()
 
@@ -45,7 +52,6 @@ export class MemoryAuthorizationStore implements AuthorizationStore {
   }
 }
 
-/** Multicall operation for batching */
 export type MulticallOperation = {
   target: Address
   callData: Hex

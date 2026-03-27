@@ -1,11 +1,6 @@
 import { parseUnits } from 'viem'
 import { Method, z } from 'mppx'
 
-const hashSchema = z.object({
-  hash: z.hash(),
-  type: z.literal('hash'),
-})
-
 const authorizationSchema = z.object({
   from: z.string(),
   to: z.string(),
@@ -35,68 +30,32 @@ const encryptedTxSchema = z.object({
   gasLimit: z.string(),
 })
 
-const encryptedDataSchema = z.object({
-  data: z.string(),
-  to: z.string(),
-  gasLimit: z.string(),
+// Single charge credential type with extensions for configuration
+const chargeCredentialSchema = z.object({
+  type: z.literal('charge'),
+  // Payment payload - varies based on gasless extension
+  payload: z.union([
+    z.object({ hash: z.hash() }),  // For non-gasless transfers
+    z.object({ authorization: authorizationSchema, signature: signatureSchema }),  // EIP-3009
+    z.object({ permit: permitSchema, signature: signatureSchema }),  // EIP-2612
+  ]),
+  // Optional encrypted transaction data
+  encryptedTx: z.optional(encryptedTxSchema),
+  // Extensions define payment behavior
+  extensions: z.optional(
+    z.object({
+      gasless: z.optional(
+        z.union([z.boolean(), z.literal('eip3009'), z.literal('eip2612')])
+      ),
+      skale: z.optional(
+        z.object({
+          encrypted: z.optional(z.boolean()),
+          confidentialToken: z.optional(z.boolean()),
+        })
+      ),
+    })
+  ),
 })
-
-const eip3009Schema = z.object({
-  type: z.literal('eip3009'),
-  authorization: authorizationSchema,
-  signature: signatureSchema,
-})
-
-const eip2612Schema = z.object({
-  type: z.literal('eip2612'),
-  permit: permitSchema,
-  signature: signatureSchema,
-})
-
-const encryptedSchema = z.object({
-  type: z.literal('encrypted'),
-  hash: z.hash(),
-  encryptedData: encryptedDataSchema,
-})
-
-const encryptedEip3009Schema = z.object({
-  type: z.literal('encrypted-eip3009'),
-  authorization: authorizationSchema,
-  signature: signatureSchema,
-  encryptedTx: encryptedTxSchema,
-})
-
-const encryptedEip2612Schema = z.object({
-  type: z.literal('encrypted-eip2612'),
-  permit: permitSchema,
-  signature: signatureSchema,
-  encryptedTx: encryptedTxSchema,
-})
-
-const confidentialEip3009Schema = z.object({
-  type: z.literal('confidential-eip3009'),
-  authorization: authorizationSchema,
-  signature: signatureSchema,
-  encryptedTx: encryptedTxSchema,
-})
-
-const confidentialEip2612Schema = z.object({
-  type: z.literal('confidential-eip2612'),
-  permit: permitSchema,
-  signature: signatureSchema,
-  encryptedTx: encryptedTxSchema,
-})
-
-const credentialPayloadSchema = z.union([
-  hashSchema,
-  eip3009Schema,
-  eip2612Schema,
-  encryptedSchema,
-  encryptedEip3009Schema,
-  encryptedEip2612Schema,
-  confidentialEip3009Schema,
-  confidentialEip2612Schema,
-])
 
 const requestSchema = z.pipe(
   z.object({
@@ -133,7 +92,7 @@ export const charge = Method.from({
   intent: 'charge',
   schema: {
     credential: {
-      payload: credentialPayloadSchema,
+      payload: chargeCredentialSchema,
     },
     request: requestSchema,
   },

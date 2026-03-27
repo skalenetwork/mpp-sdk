@@ -16,7 +16,7 @@ type ChainInput = string | Chain | ChainConfig
 type ChargeParameters = {
   chain: ChainInput
   account?: Account | Address
-  getClient?: () => Promise<Client>
+  client?: Client
   currency?: string | TokenConfig
   token?: TokenConfig
   extensions?: Extension
@@ -72,21 +72,25 @@ function normalizeSignature(signatureHex: Hex): { v: number; r: Hex; s: Hex } {
 async function eip3009Version(client: Client, tokenAddress: Address): Promise<string> {
   try {
     const { readContract } = await import('viem/actions')
-    return await readContract(client, {
+    const version = await readContract(client, {
       address: tokenAddress,
       abi: [{ inputs: [], name: 'version', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' }],
       functionName: 'version',
     })
+    // Ensure version is never empty - default to '1' if contract returns empty
+    return version && version.trim() !== '' ? version : '1'
   } catch {
     try {
       const { readContract } = await import('viem/actions')
-      return await readContract(client, {
+      const version = await readContract(client, {
         address: tokenAddress,
         abi: [{ inputs: [], name: 'EIP712_VERSION', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' }],
         functionName: 'EIP712_VERSION',
       })
+      // Ensure version is never empty - default to '1' if contract returns empty
+      return version && version.trim() !== '' ? version : '1'
     } catch {
-      return '1'
+      return '1'  // Default to '1' if we can't read it from contract
     }
   }
 }
@@ -114,11 +118,14 @@ async function eip712Domain(client: Client, tokenAddress: Address): Promise<{ na
       functionName: 'eip712Domain',
     })
 
+    // Ensure version is never empty - default to '1' if contract returns empty
+    const effectiveVersion = version && version.trim() !== '' ? version : '1'
+
     return {
       name,
-      version,
+      version: effectiveVersion,
+      verifyingContract: verifyingContract || tokenAddress,
       chainId: Number(chainId),
-      verifyingContract,
     }
   } catch {
     return null
@@ -343,7 +350,13 @@ async function executeTransferMode(context: ModeContext, challenge: Challenge) {
 
   return Credential.serialize({
     challenge,
-    payload: { hash, type: 'hash' },
+    payload: {
+      type: 'charge',
+      payload: { hash },
+      extensions: {
+        gasless: false,
+      },
+    },
     source: `did:pkh:eip155:${chain.id}:${typeof account === 'string' ? account : account.address}`,
   })
 }
@@ -375,16 +388,21 @@ async function executeEIP3009Mode(context: ModeContext, challenge: Challenge) {
   return Credential.serialize({
     challenge,
     payload: {
-      type: 'authorization',
-      authorization: {
-        from: authorization.from,
-        to: authorization.to,
-        value: authorization.value.toString(),
-        validAfter: authorization.validAfter.toString(),
-        validBefore: authorization.validBefore.toString(),
-        nonce: authorization.nonce,
+      type: 'charge',
+      payload: {
+        authorization: {
+          from: authorization.from,
+          to: authorization.to,
+          value: authorization.value.toString(),
+          validAfter: authorization.validAfter.toString(),
+          validBefore: authorization.validBefore.toString(),
+          nonce: authorization.nonce,
+        },
+        signature,
       },
-      signature,
+      extensions: {
+        gasless: 'eip3009',
+      },
     },
     source: `did:pkh:eip155:${chain.id}:${typeof account === 'string' ? account : account.address}`,
   })
@@ -422,16 +440,20 @@ async function executeEIP2612Mode(context: ModeContext, challenge: Challenge) {
   return Credential.serialize({
     challenge,
     payload: {
-      type: 'authorization',
-      authorization: {
-        from: permit.owner,
-        to: permit.spender,
-        value: permit.value.toString(),
-        validAfter: '0',
-        validBefore: permit.deadline.toString(),
-        nonce: `0x${permit.nonce.toString(16).padStart(64, '0')}` as Hex,
+      type: 'charge',
+      payload: {
+        permit: {
+          owner: permit.owner,
+          spender: permit.spender,
+          value: permit.value.toString(),
+          nonce: permit.nonce.toString(),
+          deadline: permit.deadline.toString(),
+        },
+        signature,
       },
-      signature,
+      extensions: {
+        gasless: 'eip2612',
+      },
     },
     source: `did:pkh:eip155:${chain.id}:${owner}`,
   })
@@ -462,7 +484,19 @@ async function executeEncryptedTransferMode(context: ModeContext, challenge: Cha
 
   return Credential.serialize({
     challenge,
-    payload: { hash: _hash, type: 'hash' },
+    payload: {
+      type: 'charge',
+      payload: { hash: _hash },
+      encryptedTx: {
+        data: encryptedTx.data,
+        to: encryptedTx.to,
+        gasLimit: encryptedTx.gasLimit || gasLimit,
+      },
+      extensions: {
+        gasless: false,
+        skale: { encrypted: true },
+      },
+    },
     source: `did:pkh:eip155:${chain.id}:${typeof account === 'string' ? account : account.address}`,
   })
 }
@@ -513,22 +547,27 @@ async function executeEncryptedEIP3009Mode(context: ModeContext, challenge: Chal
   return Credential.serialize({
     challenge,
     payload: {
-      type: 'encrypted-authorization',
-      authorization: {
-        from: authorization.from,
-        to: authorization.to,
-        value: authorization.value.toString(),
-        validAfter: authorization.validAfter.toString(),
-        validBefore: authorization.validBefore.toString(),
-        nonce: authorization.nonce,
+      type: 'charge',
+      payload: {
+        authorization: {
+          from: authorization.from,
+          to: authorization.to,
+          value: authorization.value.toString(),
+          validAfter: authorization.validAfter.toString(),
+          validBefore: authorization.validBefore.toString(),
+          nonce: authorization.nonce,
+        },
+        signature,
       },
-      signature,
       encryptedTx: {
         data: encryptedTx.data,
         to: encryptedTx.to,
         gasLimit: encryptedTx.gasLimit,
       },
-      hash: _hash,
+      extensions: {
+        gasless: 'eip3009',
+        skale: { encrypted: true },
+      },
     },
     source: `did:pkh:eip155:${chain.id}:${typeof account === 'string' ? account : account.address}`,
   })
@@ -590,22 +629,26 @@ async function executeEncryptedEIP2612Mode(context: ModeContext, challenge: Chal
   return Credential.serialize({
     challenge,
     payload: {
-      type: 'encrypted-authorization',
-      authorization: {
-        from: permit.owner,
-        to: permit.spender,
-        value: permit.value.toString(),
-        validAfter: '0',
-        validBefore: permit.deadline.toString(),
-        nonce: `0x${permit.nonce.toString(16).padStart(64, '0')}` as Hex,
+      type: 'charge',
+      payload: {
+        permit: {
+          owner: permit.owner,
+          spender: permit.spender,
+          value: permit.value.toString(),
+          nonce: permit.nonce.toString(),
+          deadline: permit.deadline.toString(),
+        },
+        signature,
       },
-      signature,
       encryptedTx: {
         data: encryptedTx.data,
         to: encryptedTx.to,
         gasLimit: encryptedTx.gasLimit,
       },
-      hash: _hash,
+      extensions: {
+        gasless: 'eip2612',
+        skale: { encrypted: true },
+      },
     },
     source: `did:pkh:eip155:${chain.id}:${owner}`,
   })
@@ -648,20 +691,26 @@ async function executeConfidentialEIP3009Mode(context: ModeContext, challenge: C
   return Credential.serialize({
     challenge,
     payload: {
-      type: 'encrypted-authorization',
-      authorization: {
-        from: authorization.from,
-        to: authorization.to,
-        value: authorization.value.toString(),
-        validAfter: authorization.validAfter.toString(),
-        validBefore: authorization.validBefore.toString(),
-        nonce: authorization.nonce,
+      type: 'charge',
+      payload: {
+        authorization: {
+          from: authorization.from,
+          to: authorization.to,
+          value: authorization.value.toString(),
+          validAfter: authorization.validAfter.toString(),
+          validBefore: authorization.validBefore.toString(),
+          nonce: authorization.nonce,
+        },
+        signature,
       },
-      signature,
       encryptedTx: {
         data: encryptedTx.data,
         to: encryptedTx.to,
         gasLimit: encryptedTx.gasLimit,
+      },
+      extensions: {
+        gasless: 'eip3009',
+        skale: { encrypted: true, confidentialToken: true },
       },
     },
     source: `did:pkh:eip155:${chain.id}:${typeof account === 'string' ? account : account.address}`,
@@ -715,20 +764,25 @@ async function executeConfidentialEIP2612Mode(context: ModeContext, challenge: C
   return Credential.serialize({
     challenge,
     payload: {
-      type: 'encrypted-authorization',
-      authorization: {
-        from: permit.owner,
-        to: permit.spender,
-        value: permit.value.toString(),
-        validAfter: '0',
-        validBefore: permit.deadline.toString(),
-        nonce: `0x${permit.nonce.toString(16).padStart(64, '0')}` as Hex,
+      type: 'charge',
+      payload: {
+        permit: {
+          owner: permit.owner,
+          spender: permit.spender,
+          value: permit.value.toString(),
+          nonce: permit.nonce.toString(),
+          deadline: permit.deadline.toString(),
+        },
+        signature,
       },
-      signature,
       encryptedTx: {
         data: encryptedTx.data,
         to: encryptedTx.to,
         gasLimit: encryptedTx.gasLimit,
+      },
+      extensions: {
+        gasless: 'eip2612',
+        skale: { encrypted: true, confidentialToken: true },
       },
     },
     source: `did:pkh:eip155:${chain.id}:${owner}`,
@@ -757,7 +811,7 @@ function createModeHandler(strategy: PaymentStrategy) {
 export function charge(parameters: ChargeParameters): unknown {
   return Method.toClient(chargeFromMethod, {
     async createCredential({ challenge }) {
-      const client = await parameters.getClient?.()
+      const client = parameters.client
       if (!client) throw new Error('Client required')
       if (!parameters.account) throw new Error('Account required')
 
@@ -785,3 +839,9 @@ export function charge(parameters: ChargeParameters): unknown {
 }
 
 export type { ChargeParameters }
+
+// Create evm object that matches tempo API - callable with .charge property
+export const evm = Object.assign(
+  (parameters: ChargeParameters) => charge(parameters),
+  { charge }
+)

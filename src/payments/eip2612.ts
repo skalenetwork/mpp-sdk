@@ -144,9 +144,12 @@ export async function getEIP2612Domain(
     }).catch(() => '1'),
   ])
 
+  // Ensure version is never empty - default to '1' for EIP-2612
+  const effectiveVersion = version && version.trim() !== '' ? version : '1'
+
   return {
     name,
-    version,
+    version: effectiveVersion,
     chainId,
     verifyingContract: token,
   }

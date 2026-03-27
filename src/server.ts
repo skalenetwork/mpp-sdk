@@ -18,7 +18,7 @@ import { eip3009Abi } from './shared/abi'
 
 export type ServerChargeParameters = {
   chain: ChainInput
-  getClient?: () => Promise<Client>
+  client?: Client
   currency?: string | TokenConfig
   token?: TokenConfig
   extensions?: Extension
@@ -160,11 +160,11 @@ async function checkAuthorizationNonce(
   }
 }
 
-async function resolveToken(
+function resolveToken(
   chain: ChainConfig,
   currency?: string | TokenConfig,
   tokenConfig?: TokenConfig
-): Promise<TokenConfig> {
+): TokenConfig {
   if (tokenConfig) {
     return tokenConfig
   }
@@ -190,7 +190,7 @@ async function resolveToken(
     }
   }
 
-  throw new Error(`Token "${currency}" not found on ${chain.name}`)
+  throw new Error(`Token not found: ${currency}`)
 }
 
 function validateExtensions(extensions: Extension | undefined, chain: ChainConfig, token: TokenConfig): void {
@@ -210,7 +210,7 @@ function validateExtensions(extensions: Extension | undefined, chain: ChainConfi
 }
 
 function createServerTransferMode(parameters: ServerChargeParameters) {
-  const { getClient, waitForConfirmation = true } = parameters
+  const { client, waitForConfirmation = true } = parameters
 
   return Method.toServer(chargeMethod, {
     async request({ request }) {
@@ -218,19 +218,27 @@ function createServerTransferMode(parameters: ServerChargeParameters) {
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
-      const payload = credential.payload as { type: 'hash'; hash: Hex }
-      if (payload.type !== 'hash') throw new Error('Expected hash credential')
+      const payload = credential.payload as {
+        type: 'charge'
+        payload: { hash: Hex }
+        extensions?: { gasless?: boolean | string; skale?: { encrypted?: boolean } }
+      }
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (payload.extensions?.gasless !== false) throw new Error('Expected non-gasless payment')
+
+      const hash = payload.payload.hash
+      if (!hash) throw new Error('Missing transaction hash')
 
       if (waitForConfirmation && client) {
-        const receipt = await waitForReceipt(client, payload.hash)
+        const receipt = await waitForReceipt(client, hash)
         if (!receipt) {
-          throw new Error(`Transaction not confirmed. Hash: ${payload.hash}`)
+          throw new Error(`Transaction not confirmed. Hash: ${hash}`)
         }
 
         const tokenAddress = challenge.request.currency as Address
@@ -251,14 +259,14 @@ function createServerTransferMode(parameters: ServerChargeParameters) {
         method: 'skale' as const,
         status: 'success' as const,
         timestamp: new Date().toISOString(),
-        reference: payload.hash,
+        reference: hash,
       }
     },
   })
 }
 
 function createServerEIP3009Mode(parameters: ServerChargeParameters) {
-  const { getClient, serverAccount, authorizationStore, waitForConfirmation = true } = parameters
+  const { client, serverAccount, authorizationStore, waitForConfirmation = true } = parameters
 
   return Method.toServer(chargeMethod, {
     async request({ request }) {
@@ -266,25 +274,29 @@ function createServerEIP3009Mode(parameters: ServerChargeParameters) {
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
       const payload = credential.payload as {
-        type: 'eip3009'
-        authorization: {
-          from: string
-          to: string
-          value: string
-          validAfter: string
-          validBefore: string
-          nonce: Hex
+        type: 'charge'
+        payload: {
+          authorization: {
+            from: string
+            to: string
+            value: string
+            validAfter: string
+            validBefore: string
+            nonce: Hex
+          }
+          signature: { v: number; r: string; s: string }
         }
-        signature: { v: number; r: string; s: string }
+        extensions?: { gasless?: boolean | string }
       }
-      if (payload.type !== 'eip3009') throw new Error('Expected eip3009 credential')
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (payload.extensions?.gasless !== 'eip3009') throw new Error('Expected EIP-3009 gasless extension')
 
       if (!client) throw new Error('Client required for eip3009 mode')
 
@@ -294,15 +306,15 @@ function createServerEIP3009Mode(parameters: ServerChargeParameters) {
       const tokenAddress = challenge.request.currency as Address
       const request = challenge.request
 
-      await validateAuthorizationMatchesChallenge(payload.authorization, request as { amount: string; recipient: string })
+      await validateAuthorizationMatchesChallenge(payload.payload.authorization, request as { amount: string; recipient: string })
 
       const now = Math.floor(Date.now() / 1000)
-      const validBefore = Number(payload.authorization.validBefore)
+      const validBefore = Number(payload.payload.authorization.validBefore)
       if (now > validBefore) {
         throw new Error(`Authorization expired: validBefore ${validBefore}, now ${now}`)
       }
 
-      const nonce = payload.authorization.nonce
+      const nonce = payload.payload.authorization.nonce
       if (authorizationStore) {
         const seen = await authorizationStore.hasSeen(nonce)
         if (seen) throw new Error(`Authorization nonce already used: ${nonce}`)
@@ -311,7 +323,7 @@ function createServerEIP3009Mode(parameters: ServerChargeParameters) {
       const nonceUsed = await checkAuthorizationNonce(
         client,
         tokenAddress,
-        payload.authorization.from as Address,
+        payload.payload.authorization.from as Address,
         nonce
       )
       if (nonceUsed) {
@@ -319,18 +331,18 @@ function createServerEIP3009Mode(parameters: ServerChargeParameters) {
       }
 
       const authorization: Authorization = {
-        from: payload.authorization.from as Address,
-        to: payload.authorization.to as Address,
-        value: BigInt(payload.authorization.value),
-        validAfter: BigInt(payload.authorization.validAfter),
-        validBefore: BigInt(payload.authorization.validBefore),
+        from: payload.payload.authorization.from as Address,
+        to: payload.payload.authorization.to as Address,
+        value: BigInt(payload.payload.authorization.value),
+        validAfter: BigInt(payload.payload.authorization.validAfter),
+        validBefore: BigInt(payload.payload.authorization.validBefore),
         nonce,
       }
 
       const signature: AuthorizationSignature = {
-        v: payload.signature.v,
-        r: payload.signature.r as Hex,
-        s: payload.signature.s as Hex,
+        v: payload.payload.signature.v,
+        r: payload.payload.signature.r as Hex,
+        s: payload.payload.signature.s as Hex,
       }
 
       const hash = await submitAuthorization(client, {
@@ -369,7 +381,7 @@ function createServerEIP3009Mode(parameters: ServerChargeParameters) {
 }
 
 function createServerEIP2612Mode(parameters: ServerChargeParameters) {
-  const { getClient, serverAccount, waitForConfirmation = true } = parameters
+  const { client, serverAccount, waitForConfirmation = true } = parameters
 
   return Method.toServer(chargeMethod, {
     async request({ request }) {
@@ -377,24 +389,28 @@ function createServerEIP2612Mode(parameters: ServerChargeParameters) {
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
       const payload = credential.payload as {
-        type: 'eip2612'
-        permit: {
-          owner: string
-          spender: string
-          value: string
-          nonce: string
-          deadline: string
+        type: 'charge'
+        payload: {
+          permit: {
+            owner: string
+            spender: string
+            value: string
+            nonce: string
+            deadline: string
+          }
+          signature: { v: number; r: string; s: string }
         }
-        signature: { v: number; r: string; s: string }
+        extensions?: { gasless?: boolean | string }
       }
-      if (payload.type !== 'eip2612') throw new Error('Expected eip2612 credential')
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (payload.extensions?.gasless !== 'eip2612') throw new Error('Expected EIP-2612 gasless extension')
 
       if (!client) throw new Error('Client required for eip2612 mode')
 
@@ -404,26 +420,26 @@ function createServerEIP2612Mode(parameters: ServerChargeParameters) {
       const tokenAddress = challenge.request.currency
       const request = challenge.request
 
-      await validatePermitMatchesChallenge(payload.permit, request as { amount: string; recipient: string })
+      await validatePermitMatchesChallenge(payload.payload.permit, request as { amount: string; recipient: string })
 
       const now = Math.floor(Date.now() / 1000)
-      const deadline = Number(payload.permit.deadline)
+      const deadline = Number(payload.payload.permit.deadline)
       if (now > deadline) {
         throw new Error(`Permit expired: deadline ${deadline}, now ${now}`)
       }
 
       const permit: Permit = {
-        owner: payload.permit.owner as Address,
-        spender: payload.permit.spender as Address,
-        value: BigInt(payload.permit.value),
-        nonce: BigInt(payload.permit.nonce),
-        deadline: BigInt(payload.permit.deadline),
+        owner: payload.payload.permit.owner as Address,
+        spender: payload.payload.permit.spender as Address,
+        value: BigInt(payload.payload.permit.value),
+        nonce: BigInt(payload.payload.permit.nonce),
+        deadline: BigInt(payload.payload.permit.deadline),
       }
 
       const signature: PermitSignature = {
-        v: payload.signature.v,
-        r: payload.signature.r as Hex,
-        s: payload.signature.s as Hex,
+        v: payload.payload.signature.v,
+        r: payload.payload.signature.r as Hex,
+        s: payload.payload.signature.s as Hex,
       }
 
       const hash = await submitPermitAndTransfer(client, {
@@ -460,7 +476,7 @@ function createServerEIP2612Mode(parameters: ServerChargeParameters) {
 }
 
 function createServerEncryptedTransferMode(parameters: ServerChargeParameters) {
-  const { getClient, waitForConfirmation = true } = parameters
+  const { client, waitForConfirmation = true } = parameters
 
   return Method.toServer(chargeMethod, {
     async request({ request }) {
@@ -468,27 +484,37 @@ function createServerEncryptedTransferMode(parameters: ServerChargeParameters) {
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
       const payload = credential.payload as {
-        type: 'encrypted'
-        hash: Hex
-        encryptedData: { to: string; data: string; gasLimit: string }
+        type: 'charge'
+        payload: { hash: Hex }
+        extensions?: {
+          skale?: {
+            encrypted?: boolean
+          }
+          gasless?: boolean | string
+        }
       }
-      if (payload.type !== 'encrypted') throw new Error('Expected encrypted credential')
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (!payload.extensions?.skale?.encrypted) throw new Error('Expected encrypted extension')
+      if (payload.extensions?.gasless !== false) throw new Error('Expected non-gasless payment')
+
+      const hash = payload.payload.hash
+      if (!hash) throw new Error('Missing transaction hash')
 
       if (waitForConfirmation && client) {
-        const receipt = await waitForReceipt(client, payload.hash)
+        const receipt = await waitForReceipt(client, hash)
         if (!receipt) {
-          throw new Error(`Transaction not confirmed. Hash: ${payload.hash}`)
+          throw new Error(`Transaction not confirmed. Hash: ${hash}`)
         }
 
         if (receipt.status === 'reverted') {
-          throw new Error(`Encrypted transaction reverted. Hash: ${payload.hash}`)
+          throw new Error(`Encrypted transaction reverted. Hash: ${hash}`)
         }
 
         const tokenAddress = challenge.request.currency as Address
@@ -512,14 +538,14 @@ function createServerEncryptedTransferMode(parameters: ServerChargeParameters) {
         method: 'skale' as const,
         status: 'success' as const,
         timestamp: new Date().toISOString(),
-        reference: payload.hash,
+        reference: hash,
       }
     },
   })
 }
 
 function createServerEncryptedEIP3009Mode(parameters: ServerChargeParameters) {
-  const { getClient, serverAccount, authorizationStore, waitForConfirmation = true } = parameters
+  const { client, serverAccount, authorizationStore, waitForConfirmation = true } = parameters
 
   return Method.toServer(chargeMethod, {
     async request({ request }) {
@@ -527,26 +553,36 @@ function createServerEncryptedEIP3009Mode(parameters: ServerChargeParameters) {
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
       const payload = credential.payload as {
-        type: 'encrypted-eip3009'
-        authorization: {
-          from: string
-          to: string
-          value: string
-          validAfter: string
-          validBefore: string
-          nonce: Hex
+        type: 'charge'
+        payload: {
+          authorization: {
+            from: string
+            to: string
+            value: string
+            validAfter: string
+            validBefore: string
+            nonce: Hex
+          }
+          signature: { v: number; r: string; s: string }
         }
-        signature: { v: number; r: string; s: string }
-        encryptedTx: { to: string; data: string; gasLimit: string }
+        encryptedTx?: { to: string; data: string; gasLimit: string }
+        extensions?: {
+          skale?: {
+            encrypted?: boolean
+          }
+          gasless?: boolean | string
+        }
       }
-      if (payload.type !== 'encrypted-eip3009') throw new Error('Expected encrypted-eip3009 credential')
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (!payload.extensions?.skale?.encrypted) throw new Error('Expected encrypted extension')
+      if (payload.extensions?.gasless !== 'eip3009') throw new Error('Expected EIP-3009 gasless extension')
 
       if (!client) throw new Error('Client required for encrypted-eip3009 mode')
 
@@ -555,12 +591,16 @@ function createServerEncryptedEIP3009Mode(parameters: ServerChargeParameters) {
 
       const request = challenge.request
 
-      await validateAuthorizationMatchesChallenge(payload.authorization, request as { amount: string; recipient: string })
+      await validateAuthorizationMatchesChallenge(payload.payload.authorization, request as { amount: string; recipient: string })
 
-      const nonce = payload.authorization.nonce
+      const nonce = payload.payload.authorization.nonce
       if (authorizationStore) {
         const seen = await authorizationStore.hasSeen(nonce)
         if (seen) throw new Error(`Authorization nonce already used: ${nonce}`)
+      }
+
+      if (!payload.encryptedTx) {
+        throw new Error('encryptedTx required for encrypted-eip3009 mode')
       }
 
       const hash = await sendTransaction(client, {
@@ -601,7 +641,7 @@ function createServerEncryptedEIP3009Mode(parameters: ServerChargeParameters) {
 }
 
 function createServerEncryptedEIP2612Mode(parameters: ServerChargeParameters) {
-  const { getClient, serverAccount, waitForConfirmation = true } = parameters
+  const { client, serverAccount, waitForConfirmation = true } = parameters
 
   return Method.toServer(chargeMethod, {
     async request({ request }) {
@@ -609,25 +649,35 @@ function createServerEncryptedEIP2612Mode(parameters: ServerChargeParameters) {
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
       const payload = credential.payload as {
-        type: 'encrypted-eip2612'
-        permit: {
-          owner: string
-          spender: string
-          value: string
-          nonce: string
-          deadline: string
+        type: 'charge'
+        payload: {
+          permit: {
+            owner: string
+            spender: string
+            value: string
+            nonce: string
+            deadline: string
+          }
+          signature: { v: number; r: string; s: string }
         }
-        signature: { v: number; r: string; s: string }
-        encryptedTx: { to: string; data: string; gasLimit: string }
+        encryptedTx?: { to: string; data: string; gasLimit: string }
+        extensions?: {
+          skale?: {
+            encrypted?: boolean
+          }
+          gasless?: boolean | string
+        }
       }
-      if (payload.type !== 'encrypted-eip2612') throw new Error('Expected encrypted-eip2612 credential')
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (!payload.extensions?.skale?.encrypted) throw new Error('Expected encrypted extension')
+      if (payload.extensions?.gasless !== 'eip2612') throw new Error('Expected EIP-2612 gasless extension')
 
       if (!client) throw new Error('Client required for encrypted-eip2612 mode')
 
@@ -636,7 +686,11 @@ function createServerEncryptedEIP2612Mode(parameters: ServerChargeParameters) {
 
       const request = challenge.request
 
-      await validatePermitMatchesChallenge(payload.permit, request as { amount: string; recipient: string })
+      await validatePermitMatchesChallenge(payload.payload.permit, request as { amount: string; recipient: string })
+
+      if (!payload.encryptedTx) {
+        throw new Error('encryptedTx required for encrypted-eip2612 mode')
+      }
 
       const hash = await sendTransaction(client, {
         account,
@@ -685,26 +739,39 @@ function createServerConfidentialEIP3009Mode(parameters: ServerChargeParameters)
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
       const payload = credential.payload as {
-        type: 'confidential-eip3009'
-        authorization: {
-          from: string
-          to: string
-          value: string
-          validAfter: string
-          validBefore: string
-          nonce: Hex
+        type: 'charge'
+        payload: {
+          authorization: {
+            from: string
+            to: string
+            value: string
+            validAfter: string
+            validBefore: string
+            nonce: Hex
+          }
+          signature: { v: number; r: string; s: string }
         }
-        signature: { v: number; r: string; s: string }
-        encryptedTx: { to: string; data: string; gasLimit: string }
+        encryptedTx?: { to: string; data: string; gasLimit: string }
+        extensions?: {
+          skale?: {
+            encrypted?: boolean
+            confidentialToken?: boolean
+          }
+          gasless?: boolean | string
+        }
       }
-      if (payload.type !== 'confidential-eip3009') throw new Error('Expected confidential-eip3009 credential')
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (!payload.extensions?.skale?.encrypted || !payload.extensions?.skale?.confidentialToken) {
+        throw new Error('Expected confidential token extension')
+      }
+      if (payload.extensions?.gasless !== 'eip3009') throw new Error('Expected EIP-3009 gasless extension')
 
       if (!client) throw new Error('Client required for confidential-eip3009 mode')
       if (!client.account) throw new Error('Client account required')
@@ -715,9 +782,9 @@ function createServerConfidentialEIP3009Mode(parameters: ServerChargeParameters)
       const tokenAddress = challenge.request.currency
       const request = challenge.request
 
-      await validateAuthorizationMatchesChallenge(payload.authorization, request as { amount: string; recipient: string })
+      await validateAuthorizationMatchesChallenge(payload.payload.authorization, request as { amount: string; recipient: string })
 
-      const nonce = payload.authorization.nonce
+      const nonce = payload.payload.authorization.nonce
       if (authorizationStore) {
         const seen = await authorizationStore.hasSeen(nonce)
         if (seen) throw new Error(`Authorization nonce already used: ${nonce}`)
@@ -728,11 +795,15 @@ function createServerConfidentialEIP3009Mode(parameters: ServerChargeParameters)
       const nonceUsed = await checkAuthorizationNonce(
         client,
         tokenAddress as Address,
-        payload.authorization.from as Address,
+        payload.payload.authorization.from as Address,
         nonce
       )
       if (nonceUsed) {
         throw new Error(`Authorization nonce already used on-chain: ${nonce}`)
+      }
+
+      if (!payload.encryptedTx) {
+        throw new Error('encryptedTx required for confidential-eip3009 mode')
       }
 
       const hash = await sendTransaction(client, {
@@ -789,25 +860,38 @@ function createServerConfidentialEIP2612Mode(parameters: ServerChargeParameters)
     },
     async verify({ credential }) {
       const { challenge } = credential
-      const client = await getClient?.()
+      const client = parameters.client
       const expires = challenge.expires
       if (expires && new Date(expires) < new Date()) {
         throw new Error(`Payment expired at ${expires}`)
       }
 
       const payload = credential.payload as {
-        type: 'confidential-eip2612'
-        permit: {
-          owner: string
-          spender: string
-          value: string
-          nonce: string
-          deadline: string
+        type: 'charge'
+        payload: {
+          permit: {
+            owner: string
+            spender: string
+            value: string
+            nonce: string
+            deadline: string
+          }
+          signature: { v: number; r: string; s: string }
         }
-        signature: { v: number; r: string; s: string }
-        encryptedTx: { to: string; data: string; gasLimit: string }
+        encryptedTx?: { to: string; data: string; gasLimit: string }
+        extensions?: {
+          skale?: {
+            encrypted?: boolean
+            confidentialToken?: boolean
+          }
+          gasless?: boolean | string
+        }
       }
-      if (payload.type !== 'confidential-eip2612') throw new Error('Expected confidential-eip2612 credential')
+      if (payload.type !== 'charge') throw new Error('Expected charge credential')
+      if (!payload.extensions?.skale?.encrypted || !payload.extensions?.skale?.confidentialToken) {
+        throw new Error('Expected confidential token extension')
+      }
+      if (payload.extensions?.gasless !== 'eip2612') throw new Error('Expected EIP-2612 gasless extension')
 
       if (!client) throw new Error('Client required for confidential-eip2612 mode')
       if (!client.account) throw new Error('Client account required')
@@ -818,15 +902,19 @@ function createServerConfidentialEIP2612Mode(parameters: ServerChargeParameters)
       const tokenAddress = challenge.request.currency
       const request = challenge.request
 
-      await validatePermitMatchesChallenge(payload.permit, request as { amount: string; recipient: string })
+      await validatePermitMatchesChallenge(payload.payload.permit, request as { amount: string; recipient: string })
 
       const now = Math.floor(Date.now() / 1000)
-      const deadline = Number(payload.permit.deadline)
+      const deadline = Number(payload.payload.permit.deadline)
       if (now > deadline) {
         throw new Error(`Permit expired: deadline ${deadline}, now ${now}`)
       }
 
       await ensureConfidentialCallbackBalance(client, tokenAddress as Address, 10)
+
+      if (!payload.encryptedTx) {
+        throw new Error('encryptedTx required for confidential-eip2612 mode')
+      }
 
       const hash = await sendTransaction(client, {
         account,
@@ -865,7 +953,7 @@ function createServerConfidentialEIP2612Mode(parameters: ServerChargeParameters)
   })
 }
 
-const serverModeHandlers: Record<PaymentStrategyType, (parameters: ServerChargeParameters) => ReturnType<typeof Method.toServer>> = {
+const serverModeHandlers: Record<PaymentStrategyType, (parameters: ServerChargeParameters) => unknown> = {
   transfer: createServerTransferMode,
   eip3009: createServerEIP3009Mode,
   eip2612: createServerEIP2612Mode,
@@ -897,10 +985,18 @@ function charge(parameters: ServerChargeParameters): unknown {
     token,
     { id: chain.id, name: chain.name } as Chain
   )
+  
+  console.log('🎯 Server: Payment strategy determined:', strategy)
 
   const handler = createServerModeHandler(strategy)
   return handler(parameters)
 }
 
+// Export charge function
 export { charge }
-export type { ServerChargeParameters }
+
+// Create evm object that matches tempo API - callable with .charge property
+export const evm = Object.assign(
+  (parameters: ServerChargeParameters) => charge(parameters),
+  { charge }
+)

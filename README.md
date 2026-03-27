@@ -1,6 +1,6 @@
 # @skalenetwork/mpp
 
-SKALE payment method for [MPP](https://mpp.dev/) (Metered Payment Protocol)
+SKALE payment method for [MPP](https://mpp.dev/) (Machine Payments Protocol)
 
 Enables private, gasless payments on SKALE Network using confidential tokens with BITE encryption and EIP-3009 gasless transfers.
 

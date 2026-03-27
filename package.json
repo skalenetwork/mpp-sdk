@@ -1,8 +1,8 @@
 {
   "name": "@skalenetwork/mpp",
   "type": "module",
-  "version": "0.1.0",
-  "description": "SKALE payment method for MPP (Metered Payment Protocol)",
+  "version": "0.1.4",
+  "description": "SKALE payment method for MPP (Machine Payment Protocol)",
   "author": "Sawyer Cutler <sawyer@dirtroad.dev>",
   "license": "MIT",
   "homepage": "https://github.com/skalenetwork/mpp-skale#readme",
@@ -15,8 +15,8 @@
   },
   "exports": {
     ".": "./dist/index.mjs",
-    "./client": "./dist/client.mjs",
-    "./server": "./dist/server.mjs",
+    "./client": "./dist/client/index.mjs",
+    "./server": "./dist/server/index.mjs",
     "./package.json": "./package.json"
   },
   "files": [
@@ -30,14 +30,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@skalenetwork/bite": "^0.8.1-develop.0",
-    "mppx": "^0.4.7",
-    "viem": "^2.47.5"
+    "@skalenetwork/bite": "0.8.1-develop.0",
+    "mppx": "^0.4.9",
+    "viem": "^2.47.6"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^25.5.0",
     "tsdown": "^0.21.4",
-    "typescript": "^5.9.3",
-    "vitest": "^3.0.0"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1"
   }
 }

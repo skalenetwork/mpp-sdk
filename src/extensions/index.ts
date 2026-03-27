@@ -1,35 +1,27 @@
 import type { Chain } from 'viem'
+import type { TokenSupport } from '../config/chains'
 
-export type Extension = {
-  skale?: {
-    encrypted?: boolean
-    confidentialToken?: boolean
-  }
+// Extension types
+export interface SkaleExtensions {
+  encrypted?: boolean
+  confidentialToken?: boolean
+}
+
+export interface Extension {
+  skale?: SkaleExtensions
   gasless?: boolean | 'eip3009' | 'eip2612'
 }
 
-export type TokenSupport = {
-  supportsEIP3009: boolean
-  supportsEIP2612: boolean
+export interface ChainExtensions {
+  skale?: SkaleExtensions
 }
 
-export type GaslessType = 'eip3009' | 'eip2612' | null
-
+// Validation function
 export function validateExtensions(
   extensions: Extension,
-  chain: Chain,
+  _chain: Chain,
   token: TokenSupport
 ): void {
-  const isSkaleChain = chain.id === 103698795 || chain.name.toLowerCase().includes('skale')
-
-  if (extensions.skale?.confidentialToken && !isSkaleChain) {
-    throw new Error('confidentialToken is only supported on SKALE chains')
-  }
-
-  if (extensions.skale?.encrypted && !isSkaleChain) {
-    throw new Error('encryption is only supported on SKALE chains')
-  }
-
   if (extensions.gasless === 'eip3009' && !token.supportsEIP3009) {
     throw new Error('EIP-3009 gasless transfers not supported by token')
   }
@@ -39,10 +31,11 @@ export function validateExtensions(
   }
 }
 
+// Gasless type resolution
 export function resolveGaslessType(
   gasless: Extension['gasless'],
   token: TokenSupport
-): GaslessType {
+): 'eip3009' | 'eip2612' | null {
   if (gasless === false || gasless === undefined) {
     return null
   }

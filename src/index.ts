@@ -1,23 +1,39 @@
 export { Mppx } from 'mppx/client'
 
-// Client and Server namespaces
-export * as evm from './client'
-export * as evmServer from './server'
+// Methods - Standard EVM payments (ERC-20, EIP-3009, EIP-2612)
+export { evm, evmServer, type EvmChargeParameters, type EvmServerChargeParameters } from './methods/evm'
 
-// Chains
-export type { ChainConfig, ChainExtensions, SkaleExtensions, TokenConfig } from './chains'
-export { resolveChain, getSupportedTokens, supportsEncryptedMode, supportsConfidentialToken } from './chains/resolver'
-export { presets, skaleBaseMainnet as skaleBase, skaleBaseSepolia, biteSandbox, baseMainnet as base, baseSepolia } from './chains/presets'
+// Extensions - SKALE-specific features (encrypted, confidential)
+export { skale, skaleServer, type SkaleChargeParameters, type SkaleServerChargeParameters } from './extensions/skale'
 
-// Extensions
-export type { Extension } from './extensions'
-export type { PaymentStrategy, PaymentStrategyType } from './extensions/resolver'
+// Core types from base files
+export type { ChargeParameters } from './client/index'
+export type { ServerChargeParameters } from './server/index'
+
+// Extension types and functions
+export type { Extension, SkaleExtensions, ChainExtensions } from './extensions'
 export { validateExtensions, resolveGaslessType } from './extensions'
-export { determinePaymentStrategy } from './extensions/resolver'
 
-// Tokens
-export type { TokenConfig as TokenInfo } from './tokens'
-export { resolveToken, createToken } from './tokens'
+// Chains and Tokens
+export type { ChainConfig, TokenConfig, TokenSupport } from './config/chains'
+export type { ChainExtensions as ChainExtensionsConfig } from './config/chains'
+export {
+  resolveChain,
+  getSupportedTokens,
+  supportsEncryptedMode,
+  supportsConfidentialToken,
+  presets,
+  skaleBaseMainnet as skaleBase,
+  skaleBaseSepolia,
+  biteSandbox,
+  baseMainnet as base,
+  baseSepolia,
+} from './config/chains'
 
-// Payments
-export type { Authorization, AuthorizationSignature, Permit, PaymentResult } from './payments/types'
+// Token utilities
+export { resolveToken, createToken } from './config/tokens'
+
+// Payment types
+export type { Authorization, AuthorizationSignature, Permit, PaymentResult } from './utils/types'
+export type { AuthorizationStore } from './utils/types'
+export { MemoryAuthorizationStore } from './utils/types'

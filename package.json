@@ -15,8 +15,8 @@
   },
   "exports": {
     ".": "./dist/index.mjs",
-    "./client": "./dist/client.mjs",
-    "./server": "./dist/server.mjs",
+    "./client": "./dist/client/index.mjs",
+    "./server": "./dist/server/index.mjs",
     "./package.json": "./package.json"
   },
   "files": [

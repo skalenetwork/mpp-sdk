@@ -1,4 +1,5 @@
-import type { Extension, TokenSupport } from './index'
+import type { Extension } from './index'
+import type { TokenSupport } from '../config/chains'
 import type { Chain } from 'viem'
 
 export type PaymentStrategyType =

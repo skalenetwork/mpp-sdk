@@ -18,9 +18,9 @@ if [[ -z $VERSION ]]; then
       exit 1
 fi
 
-if [[ $BRANCH == 'stable' ]]; then
+if [[ $BRANCH == 'stable' || $BRANCH == 'main' ]]; then
     echo $VERSION
-    exit 1
+    exit 0
 fi
 
 if [[ $BRANCH =~ ^v[0-9] ]]; then

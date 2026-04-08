@@ -2,16 +2,16 @@
   "name": "@skalenetwork/mpp",
   "type": "module",
   "version": "0.1.4",
-  "description": "SKALE payment method for MPP (Machine Payment Protocol)",
+  "description": "SKALE SDK for MPP (Machine Payment Protocol)",
   "author": "Sawyer Cutler <sawyer@dirtroad.dev>",
   "license": "MIT",
-  "homepage": "https://github.com/skalenetwork/mpp-skale#readme",
+  "homepage": "https://github.com/skalenetwork/mpp-sdk#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/skalenetwork/mpp-skale.git"
+    "url": "git+https://github.com/skalenetwork/mpp-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/skalenetwork/mpp-skale/issues"
+    "url": "https://github.com/skalenetwork/mpp-sdk/issues"
   },
   "exports": {
     ".": "./dist/index.mjs",
@@ -20,8 +20,7 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
-    "examples"
+    "dist"
   ],
   "scripts": {
     "build": "tsdown",

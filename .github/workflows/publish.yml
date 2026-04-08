@@ -56,7 +56,7 @@ jobs:
 
       - name: Publish to npm
         run: |
-          npm version --no-git-tag-version $VERSION
+          npm version --no-git-tag-version --allow-same-version $VERSION
           npm publish --access public --tag ${{ env.NPM_TAG }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

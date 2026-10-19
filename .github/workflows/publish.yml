@@ -6,6 +6,10 @@ on:
       - main
       - staging
 
+permissions:
+  contents: write   # create GitHub releases
+  id-token: write   # npm trusted publishing (OIDC)
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -27,6 +31,9 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org/'
           cache: 'pnpm'
+
+      - name: Update npm (trusted publishing requires >= 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -58,8 +65,6 @@ jobs:
         run: |
           npm version --no-git-tag-version --allow-same-version $VERSION
           npm publish --access public --tag ${{ env.NPM_TAG }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
